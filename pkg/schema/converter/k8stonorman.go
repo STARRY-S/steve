@@ -8,7 +8,9 @@ import (
 
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/norman/types/convert"
-	v1 "github.com/rancher/wrangler/v2/pkg/generated/controllers/apiextensions.k8s.io/v1"
+	"github.com/rancher/steve/pkg/attributes"
+	"github.com/rancher/steve/pkg/resources/apigroups"
+	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/kube-openapi/pkg/util/proto"
@@ -49,10 +51,12 @@ func GVRToPluralName(gvr schema.GroupVersionResource) string {
 	return fmt.Sprintf("%s.%s", gvr.Group, gvr.Resource)
 }
 
-// GetGVKForKind attempts to retrieve a GVK for a given Kind. Not all kind represent top level resources,
-// so this function may return nil if the kind did not have a gvk extension
-func GetGVKForKind(kind *proto.Kind) *schema.GroupVersionKind {
-	extensions, ok := kind.Extensions[gvkExtensionName].([]any)
+// GetGVKForProto attempts to retrieve a GVK for a given OpenAPI V2 schema
+// object.
+// The GVK is defined in an extension. It is possible that the protoSchema does
+// not have the GVK extension set - in that case, we return nil.
+func GetGVKForProtoSchema(protoSchema proto.Schema) *schema.GroupVersionKind {
+	extensions, ok := protoSchema.GetExtensions()[gvkExtensionName].([]any)
 	if !ok {
 		return nil
 	}
@@ -69,10 +73,18 @@ func GetGVKForKind(kind *proto.Kind) *schema.GroupVersionKind {
 	return nil
 }
 
+// GetGVKForKind attempts to retrieve a GVK for a given Kind. Not all kind represent top level resources,
+// so this function may return nil if the kind did not have a gvk extension
+func GetGVKForKind(kind *proto.Kind) *schema.GroupVersionKind {
+	return GetGVKForProtoSchema(kind)
+}
+
 // ToSchemas creates the schemas for a K8s server, using client to discover groups/resources, and crd to potentially
 // add additional information about new fields/resources. Mostly ties together addDiscovery and addCustomResources.
 func ToSchemas(crd v1.CustomResourceDefinitionClient, client discovery.DiscoveryInterface) (map[string]*types.APISchema, error) {
 	result := map[string]*types.APISchema{}
+
+	addTemplateBased(result)
 
 	if err := addDiscovery(client, result); err != nil {
 		return nil, err
@@ -87,4 +99,11 @@ func ToSchemas(crd v1.CustomResourceDefinitionClient, client discovery.Discovery
 	}
 
 	return result, nil
+}
+
+// some schemas are not based on real resources but are filled-in by a template later on. This function adds the base
+// schema so that these endpoints are still recognizable in the api
+func addTemplateBased(schemas map[string]*types.APISchema) {
+	apiGroupGVK := attributes.GVK(&apigroups.BaseSchema)
+	schemas[GVKToVersionedSchemaID(apiGroupGVK)] = &apigroups.BaseSchema
 }

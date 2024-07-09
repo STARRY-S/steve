@@ -2,15 +2,16 @@ package definitions
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/debounce"
-	apiextcontrollerv1 "github.com/rancher/wrangler/v2/pkg/generated/controllers/apiextensions.k8s.io/v1"
-	v1 "github.com/rancher/wrangler/v2/pkg/generated/controllers/apiregistration.k8s.io/v1"
-	"github.com/rancher/wrangler/v2/pkg/schemas"
+	apiextcontrollerv1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io/v1"
+	v1 "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiregistration.k8s.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/discovery"
 )
@@ -43,16 +44,36 @@ type definitionField struct {
 	Required    bool   `json:"required,omitempty"`
 }
 
+// Merge merges the provided schema into s. All conflicting values (i.e. that are in both schema and s)
+// are replaced with the values from s.
+func (s *schemaDefinition) Merge(schema schemaDefinition) error {
+	if s.DefinitionType != schema.DefinitionType {
+		return fmt.Errorf("invalid definition type: %s != %s", s.DefinitionType, schema.DefinitionType)
+	}
+
+	for key, value := range schema.Definitions {
+		mergedDef := s.Definitions[key]
+		if mergedDef.ResourceFields == nil {
+			mergedDef.ResourceFields = make(map[string]definitionField)
+		}
+
+		mergedDef.Type = value.Type
+		mergedDef.Description = value.Description
+		for fieldKey, fieldValue := range value.ResourceFields {
+			mergedDef.ResourceFields[fieldKey] = fieldValue
+		}
+		s.Definitions[key] = mergedDef
+	}
+	return nil
+}
+
 // Register registers the schemaDefinition schema.
 func Register(ctx context.Context,
 	baseSchema *types.APISchemas,
 	client discovery.DiscoveryInterface,
 	crd apiextcontrollerv1.CustomResourceDefinitionController,
 	apiService v1.APIServiceController) {
-	handler := SchemaDefinitionHandler{
-		baseSchema: baseSchema,
-		client:     client,
-	}
+	handler := NewSchemaDefinitionHandler(baseSchema, crd.Cache(), client)
 	baseSchema.MustAddSchema(types.APISchema{
 		Schema: &schemas.Schema{
 			ID:              "schemaDefinition",
@@ -63,7 +84,7 @@ func Register(ctx context.Context,
 	})
 
 	debounce := debounce.DebounceableRefresher{
-		Refreshable: &handler,
+		Refreshable: handler,
 	}
 	crdDebounce := getDurationEnvVarOrDefault(delayEnvVar, defaultDelay, delayUnit)
 	refHandler := refreshHandler{
