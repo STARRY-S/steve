@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	openapi_v2 "github.com/google/gnostic-models/openapiv2"
 	"github.com/rancher/apiserver/pkg/apierror"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/wrangler/v3/pkg/generic/fake"
 	wschemas "github.com/rancher/wrangler/v3/pkg/schemas"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -34,7 +34,7 @@ func TestRefresh(t *testing.T) {
 	require.NotNil(t, userAttributesV2)
 
 	nullableV2 := getJSONSchema(crds, "nullable.management.cattle.io", "v2")
-	require.NotNil(t, userAttributesV2)
+	require.NotNil(t, nullableV2)
 
 	tests := []struct {
 		name             string
@@ -84,6 +84,11 @@ func TestRefresh(t *testing.T) {
 					ModelName: "io.cattle.management.v2.Nullable",
 					Schema:    defaultModels.LookupModel("io.cattle.management.v2.Nullable"),
 					CRD:       nullableV2,
+				},
+				"management.cattle.io.schemaless": {
+					ModelName: "io.cattle.management.v2.Schemaless",
+					Schema:    defaultModels.LookupModel("io.cattle.management.v2.Schemaless"),
+					CRD:       nil,
 				},
 			},
 		},
@@ -146,6 +151,11 @@ func TestRefresh(t *testing.T) {
 					ModelName: "io.cattle.management.v2.Nullable",
 					Schema:    defaultModels.LookupModel("io.cattle.management.v2.Nullable"),
 					CRD:       nullableV2,
+				},
+				"management.cattle.io.schemaless": {
+					ModelName: "io.cattle.management.v2.Schemaless",
+					Schema:    defaultModels.LookupModel("io.cattle.management.v2.Schemaless"),
+					CRD:       nil,
 				},
 			},
 		},

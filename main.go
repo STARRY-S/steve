@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/steve/pkg/debug"
 	stevecli "github.com/rancher/steve/pkg/server/cli"
 	"github.com/rancher/steve/pkg/version"
@@ -34,9 +35,9 @@ func main() {
 func run(_ *cli.Context) error {
 	ctx := signals.SetupSignalContext()
 	debugconfig.MustSetupDebug()
-	s, err := config.ToServer(ctx, false)
+	s, err := config.ToServer(ctx, debugconfig.SQLCache)
 	if err != nil {
 		return err
 	}
-	return s.ListenAndServe(ctx, config.HTTPSListenPort, config.HTTPListenPort, nil)
+	return s.ListenAndServe(ctx, config.HTTPSListenPort, config.HTTPListenPort, &server.ListenOpts{DisplayServerLogs: true})
 }

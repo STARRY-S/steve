@@ -104,6 +104,8 @@ func formatter(summarycache *summarycache.SummaryCache) types.Formatter {
 		}
 
 		if unstr, ok := resource.APIObject.Object.(*unstructured.Unstructured); ok {
+			// with the sql cache, these were already added by the indexer. However, the sql cache
+			// is only used for lists, so we need to re-add here for get/watch
 			s, rel := summarycache.SummaryAndRelationship(unstr)
 			data.PutValue(unstr.Object, map[string]interface{}{
 				"name":          s.State,
